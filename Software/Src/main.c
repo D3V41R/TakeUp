@@ -1,6 +1,8 @@
 
 #include "main.h"
 #include "mpu6050.h"
+#include "Nrf2401.h"
+#include "Motors.h"
 
 
 I2C_HandleTypeDef hi2c1;
@@ -12,7 +14,6 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart2;
 
 
-
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
@@ -20,40 +21,82 @@ static void MX_I2C1_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM2_Init(void);
 
+typedef struct {
+    float throttle;
+    float roll;
+    float pitch;
+    float yaw;
+} rc_packet;
+
 
 
 int main(void)
 {
-
-
   HAL_Init();
-
 
   SystemClock_Config();
 
-
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+
+  HAL_UART_Transmit(&huart2, (uint8_t*)"BOOT\r\n", 6, 1000);
+
   MX_I2C1_Init();
+  HAL_UART_Transmit(&huart2, (uint8_t*)"I2C OK\r\n", 8, 1000);
+
   MX_SPI2_Init();
+  HAL_UART_Transmit(&huart2, (uint8_t*)"SPI OK\r\n", 8, 1000);
+
   MX_TIM2_Init();
+  HAL_UART_Transmit(&huart2, (uint8_t*)"TIM OK\r\n", 8, 1000);
 
-  mpu_init();
+  Motor_Init();
+  Nrf_init();
+
+  HAL_GPIO_WritePin(CSN_GPIO_Port, CSN_Pin, GPIO_PIN_SET);
 
 
+
+  uint8_t payload[16];
+  rc_packet packet;
+  char buf[120];
+
+  static float smooth_throttle = 0.0f;
+  float alpha = 0.1f; // lower = smoother, higher = more responsive
 
   while (1)
+
+
   {
+      if (Recieve_nrf(payload, 16))
+      {
+          memcpy(&packet, payload, sizeof(rc_packet));
 
-	  log_data();
+          sprintf(buf,
+                  "T=%.2f R=%.2f P=%.2f Y=%.2f\r\n",
+                  packet.throttle,
+                  packet.roll,
+                  packet.pitch,
+                  packet.yaw);
+
+          HAL_UART_Transmit(&huart2, (uint8_t*)buf, strlen(buf), 1000);
 
 
+          smooth_throttle = (alpha * packet.throttle) + ((1.0f - alpha) * smooth_throttle);
+
+          uint8_t throttle_percent = (uint8_t)(smooth_throttle * 100.0f);
+          Motor_SetSpeed(throttle_percent);
+
+      }
 
   }
-
 }
 
 
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -67,14 +110,13 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 16;
-  RCC_OscInitStruct.PLL.PLLN = 336;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 72;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -188,9 +230,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 71;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 4294967295;
+  htim2.Init.Period = 19999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
@@ -282,7 +324,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(CSN_GPIO_Port, CSN_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(CE_GPIO_Port, CE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -290,12 +338,26 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : CSN_Pin */
+  GPIO_InitStruct.Pin = CSN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(CSN_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : LD2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : CE_Pin */
+  GPIO_InitStruct.Pin = CE_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(CE_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
