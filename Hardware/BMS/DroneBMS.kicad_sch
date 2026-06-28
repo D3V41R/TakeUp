@@ -3399,7 +3399,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Inductor_SMD:L_Bourns-SRN6028"
+		(property "Footprint" "Custom_Footprints:IND_VSAB0630-4R7M"
 			(at 138.43 55.88 0)
 			(effects
 				(font
