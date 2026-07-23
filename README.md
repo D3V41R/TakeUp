@@ -58,6 +58,8 @@ TakeUp/
 │       ├── DroneBMS.kicad_sch     # power distribution board schematic (KiCad 9)
 │       ├── DroneBMS.kicad_pcb     # 4-layer PCB layout
 │       └── PCB_Render_1.png       # 3D render
+│   └── Flight Controller/
+│       └── IMG_4678.jpeg          # hand-soldered flight controller build
 ├── Software/
 │   ├── INC/                       # headers
 │   │   ├── Dshot150.h
@@ -80,6 +82,10 @@ TakeUp/
 ## Flight Controller (STM32F4)
 
 The flight controller runs on an STM32F4 Nucleo-64 board (pin map matches the standard Nucleo layout: `PC13` user button, `PA5` = `LD2`). Firmware is generated with STM32CubeMX/HAL and hand-extended.
+
+![Flight controller build — MPU6050 and NRF24L01+ hand-soldered onto perfboard](Hardware/Flight%20Controller/IMG_4678.jpeg)
+
+*Hand-wired prototype: MPU6050 breakout and NRF24L01+ (with SMA antenna) soldered onto perfboard with screw-terminal breakouts for power and signal.*
 
 **Clock tree:** 8 MHz HSE → PLL (`M=4, N=72, P=/2`) → 72 MHz SYSCLK, APB1 = 36 MHz (72 MHz timer clock), APB2 = 72 MHz.
 
