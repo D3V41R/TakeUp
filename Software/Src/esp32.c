@@ -1,15 +1,15 @@
-#include stdint.h
-#include stdio.h
-#include ps5Controller.h
-#include SPI.h
-#include RF24.h
+#include <stdint.h>
+#include <stdio.h>
+#include <ps5Controller.h>
+#include <SPI.h>
+#include <RF24.h>
 
 #define CE_PIN  4
 #define CSN_PIN 5
 
 RF24 radio(CE_PIN, CSN_PIN);
 
- Must match STM32 RX address
+// Must match STM32 RX address
 const uint8_t address[5] = {0xE7, 0xE7, 0xE7, 0xE7, 0xE7};
 
 typedef struct {
@@ -27,31 +27,31 @@ void sendPacket()
     bool sent = radio.write(&packet, sizeof(rc_packet));
 
     if (sent) {
-        Serial.printf(sent OK T=%.2f R=%.2f P=%.2f Y=%.2frn,
+        Serial.printf("sent OK T=%.2f R=%.2f P=%.2f Y=%.2f\r\n",
                       packet.throttle,
                       packet.roll,
                       packet.pitch,
                       packet.yaw);
     } else {
-        Serial.println(sent FAIL);
+        Serial.println("sent FAIL");
     }
 }
 
 void notify()
 {
-    packet.throttle = -(ps5.lx  128.0f);
-    packet.yaw      =  (ps5.ry  128.0f);
-    packet.pitch    = -(ps5.rx  128.0f);
-    packet.roll     =  (ps5.ly  128.0f);
+    packet.throttle = -(ps5.lx / 128.0f);
+    packet.yaw      =  (ps5.ry / 128.0f);
+    packet.pitch    = -(ps5.rx / 128.0f);
+    packet.roll     =  (ps5.ly / 128.0f);
 }
 void onConnect()
 {
-    Serial.println(Connected!);
+    Serial.println("Connected!");
 }
 
 void onDisConnect()
 {
-    Serial.println(Disconnected!);
+    Serial.println("Disconnected!");
 }
 
 void setup()
@@ -60,7 +60,7 @@ void setup()
     delay(1000);
 
     if (!radio.begin()) {
-        Serial.println(NRF not responding);
+        Serial.println("NRF not responding");
         while (1) {
             delay(1000);
         }
@@ -80,18 +80,18 @@ void setup()
 
     radio.flush_tx();
     radio.printDetails();
-    Serial.print(Payload size );
+    Serial.print("Payload size ");
     Serial.println(sizeof(rc_packet));
 
     ps5.attach(notify);
     ps5.attachOnConnect(onConnect);
     ps5.attachOnDisconnect(onDisConnect);
-    ps5.begin(24A6FA1C06E9);
+    ps5.begin("24:A6:FA:1C:06:E9");
 
-    Serial.println(Ready.);
+    Serial.println("Ready.");
 
     while (ps5.isConnected() == false) {
-        Serial.println(PS5 controller not found);
+        Serial.println("PS5 controller not found");
         delay(300);
     }
 }
@@ -99,15 +99,15 @@ void setup()
 void loop()
 {
     if (ps5.isConnected()) {
-        packet.throttle = -(ps5.lx  128.0f);
-        packet.yaw      =  (ps5.ry  128.0f);
-        packet.pitch    = -(ps5.rx  128.0f);
-        packet.roll     =  (ps5.ly  128.0f);
+        packet.throttle = -(ps5.lx / 128.0f);
+        packet.yaw      =  (ps5.ry / 128.0f);
+        packet.pitch    = -(ps5.rx / 128.0f);
+        packet.roll     =  (ps5.ly / 128.0f);
 
         bool sent = radio.write(&packet, sizeof(rc_packet));
 
-        Serial.printf(sent %s T=%.2f R=%.2f P=%.2f Y=%.2frn,
-                      sent  OK  FAIL,
+        Serial.printf("sent %s T=%.2f R=%.2f P=%.2f Y=%.2f\r\n",
+                      sent ? "OK" : "FAIL",
                       packet.throttle,
                       packet.roll,
                       packet.pitch,
