@@ -24,26 +24,8 @@
 
 ## System Overview
 
-```
-┌─────────────────────┐        2.4 GHz NRF24L01+        ┌──────────────────────────────────┐
-│  ESP32 + PS5         │ ───────────────────────────────▶│  STM32F4 Flight Controller       │
-│  controller (Bluetooth│   16-byte packet, 1 Mbps,       │  ┌─────────────┐   ┌───────────┐ │
-│  gamepad → radio)     │   channel 85, no auto-ack        │  │  MPU6050    │   │  4x ESC   │ │
-└─────────────────────┘                                    │  │  IMU (I2C1) │   │  (TIM2 PWM│ │
-                                                             │  └─────────────┘   │  / DShot) │ │
-                                                             │        │           └───────────┘ │
-                                                             │        ▼                          │
-                                                             │  Complementary filter → roll/pitch │
-                                                             │  Low-pass filtered throttle         │
-                                                             └──────────────────────────────────┘
-                                                                          ▲
-                                                                          │ 5V / 3.3V regulated rails
-                                                             ┌──────────────────────────────────┐
-                                                             │  Power Distribution Board          │
-                                                             │  3S LiPo → buck (5V) → LDO (3.3V)   │
-                                                             │  fused + TVS-protected battery line │
-                                                             └──────────────────────────────────┘
-```
+<img width="1638" height="960" alt="image" src="https://github.com/user-attachments/assets/2b5463dc-1da0-4cc0-8964-2e1ca56a6ed8" />
+
 
 Today, the RC packet source is a PS5 controller relayed through an ESP32 (`Software/Src/esp32.c`) rather than voice — this is the interim control path used to validate the flight controller, IMU fusion, and radio link while the voice front-end is built out.
 
